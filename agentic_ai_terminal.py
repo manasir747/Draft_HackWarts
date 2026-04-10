@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 import sys
 import re
 import importlib
@@ -182,7 +185,6 @@ def main():
             try:
                 from langchain_groq import ChatGroq
                 from langchain_core.tools import StructuredTool
-                from langchain_core.messages import HumanMessage
                 from langchain.agents import create_agent
                 from pydantic import BaseModel, Field
             except Exception as exc:
@@ -229,11 +231,26 @@ def main():
             agent = create_agent(
                 model=llm,
                 tools=tools,
-                system_prompt="You are a helpful agent. Use tools when needed.",
+                system_prompt=(
+                    "You are a helpful terminal-based assistant. Use tools when useful "
+                    "and keep answers concise."
+                ),
             )
-            result = agent.invoke({"messages": [HumanMessage(content=user_input)]})
-            messages = result.get("messages", [])
-            final_text = messages[-1].content if messages else ""
+            result = agent.invoke({"messages": [{"role": "user", "content": user_input}]})
+            final_text = ""
+            messages = result.get("messages", []) if isinstance(result, dict) else []
+            if messages:
+                last_message = messages[-1]
+                content = getattr(last_message, "content", "")
+                if isinstance(content, list):
+                    final_text = "\n".join(
+                        str(item.get("text", "")) if isinstance(item, dict) else str(item)
+                        for item in content
+                    ).strip()
+                else:
+                    final_text = str(content).strip()
+            if not final_text and isinstance(result, dict):
+                final_text = str(result.get("output", "")).strip()
             print(f"Final Answer: {final_text}")
             print("Attempts: 1")
             continue
